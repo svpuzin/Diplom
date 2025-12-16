@@ -224,3 +224,137 @@ terraform {
 Можно использовать terraform destroy без ручных действий
 Если хочешь, следующим шагом я могу написать готовый Terraform для VPC + multi-AZ, чтобы сразу подготовить сеть под Kubernetes.
 Хочешь, чтобы я это сделал?
+
+Хорошо, давай сделаем **правильный bootstrap для Terraform**, который подготовит сервисный аккаунт в Яндекс Облаке для управления инфраструктурой без суперправ.
+
+Ниже — **пошаговая конфигурация** с пояснениями.
+
+---
+
+## 1️⃣ Создание сервисного аккаунта
+
+```hcl
+resource "yandex_iam_service_account" "terraform_sa" {
+  name        = "terraform-sa"
+  description = "Service account for managing infrastructure"
+}
+```
+
+* Имя любое, но желательно указать `terraform`
+* Это аккаунт будет использоваться для всех операций Terraform
+
+---
+
+## 2️⃣ Назначение минимальных ролей
+
+Для подготовки Kubernetes кластера сервисному аккаунту нужны **только необходимые права**, а именно:
+
+| Назначение                      | Роль                       |
+| ------------------------------- | -------------------------- |
+| VPC / сети                      | `vpc.admin`                |
+| Compute / ноды                  | `compute.admin`            |
+| Storage (backend, registry)     | `storage.editor`           |
+| Container Registry (если нужен) | `container-registry.admin` |
+
+Пример:
+
+```hcl
+resource "yandex_resourcemanager_folder_iam_member" "vpc" {
+  folder_id = var.folder_id
+  role      = "vpc.admin"
+  member    = "serviceAccount:${yandex_iam_service_account.terraform_sa.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "compute" {
+  folder_id = var.folder_id
+  role      = "compute.admin"
+  member    = "serviceAccount:${yandex_iam_service_account.terraform_sa.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "storage" {
+  folder_id = var.folder_id
+  role      = "storage.editor"
+  member    = "serviceAccount:${yandex_iam_service_account.terraform_sa.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "registry" {
+  folder_id = var.folder_id
+  role      = "container-registry.admin"
+  member    = "serviceAccount:${yandex_iam_service_account.terraform_sa.id}"
+}
+```
+
+✅ Это **минимальные и достаточные права**
+❌ Не используется `editor` или `admin` на уровне всей папки
+
+---
+
+## 3️⃣ Создание статического ключа доступа
+
+Чтобы Terraform мог работать с Object Storage (для backend):
+
+```hcl
+resource "yandex_iam_service_account_static_access_key" "terraform_key" {
+  service_account_id = yandex_iam_service_account.terraform_sa.id
+  description        = "Static access key for Terraform"
+}
+```
+
+* `access_key` и `secret_key` потом передаются в backend Terraform через **переменные окружения**, а не хардкодом.
+
+---
+
+## 4️⃣ Создание bucket для tfstate (опционально на этом этапе)
+
+```hcl
+resource "yandex_storage_bucket" "tfstate" {
+  bucket = "tfstate-${var.folder_id}"
+
+  access_key = yandex_iam_service_account_static_access_key.terraform_key.access_key
+  secret_key = yandex_iam_service_account_static_access_key.terraform_key.secret_key
+
+  acl = "private"
+
+  versioning {
+    enabled = true
+  }
+}
+```
+
+* Versioning обязательно, чтобы можно было откатывать состояние
+* ACL `private`, чтобы никто кроме сервисного аккаунта не имел доступа
+
+---
+
+## 5️⃣ Provider для bootstrap
+
+```hcl
+provider "yandex" {
+  token     = var.token     # только на bootstrap
+  cloud_id  = var.cloud_id
+  folder_id = var.folder_id
+  zone      = "ru-central1-a"
+}
+```
+
+* После bootstrap Terraform использует **static access key**, `token` больше не нужен.
+
+---
+
+### 🔹 Итог
+
+* Сервисный аккаунт создан
+* Назначены **минимальные роли** для Terraform
+* Backend S3 подготовлен (bucket + ключ)
+* Без суперпользователя, без `editor`
+
+---
+
+Если хочешь, я могу сразу написать **готовый пример Terraform bootstrap**, который:
+
+* Создаёт сервисный аккаунт
+* Создаёт bucket для backend
+* Генерирует static access key
+* Полностью готов к `terraform apply` и `terraform destroy` без ручных действий
+
+Хочешь, чтобы я это сделал?
