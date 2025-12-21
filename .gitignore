@@ -35,3 +35,19 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+
+# Secrets
+set_env.sh
+secrets/
+Atlantis/secrets/
+
+# Providers cache
+terraform/providers/
