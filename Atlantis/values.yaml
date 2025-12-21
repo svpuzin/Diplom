@@ -1,0 +1,6 @@
+orgAllowlist: github.com/svpuzin/*
+
+github:
+  user: svpuzin
+
+vcsSecretName: atlantis-vcs

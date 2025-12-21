@@ -1,0 +1,10 @@
+apiVersion: qbec.io/v1alpha1
+kind: App
+metadata:
+  name: diplom-app
+spec:
+  environments:
+    default:
+      defaultNamespace: default
+      server: https://158.160.210.94
+  vars: {}
