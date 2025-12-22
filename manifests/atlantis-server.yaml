@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: atlantis
+  namespace: default
+spec:
+  serviceName: atlantis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlantis
+  template:
+    metadata:
+      labels:
+        app: atlantis
+    spec:
+      hostNetwork: true                   # используем сеть хоста
+      dnsPolicy: ClusterFirstWithHostNet  # корректная резолвинг DNS
+      securityContext:
+        fsGroup: 1000
+      containers:
+      - name: atlantis
+        image: ghcr.io/runatlantis/atlantis:v0.23.2
+        ports:
+        - containerPort: 4141
+          name: atlantis
+        env:
+        - name: ATLANTIS_REPO_ALLOWLIST
+          value: github.com/svpuzin/*
+        - name: ATLANTIS_GH_USER
+          value: svpuzin
+        - name: ATLANTIS_GH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: atlantis-vcs
+              key: github_token
+        - name: ATLANTIS_GH_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: atlantis-vcs
+              key: github-secret
+        - name: ATLANTIS_DATA_DIR
+          value: /atlantis-data
+        - name: ATLANTIS_PORT
+          value: "4141"
+        volumeMounts:
+        - name: atlantis-data
+          mountPath: /atlantis-data
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 4141
+          periodSeconds: 60
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 4141
+          periodSeconds: 60
+      volumes:
+      - name: atlantis-data
+        persistentVolumeClaim:
+          claimName: atlantis-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlantis
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: atlantis
+  ports:
+    - name: atlantis
+      port: 4141
+      targetPort: 4141
+      nodePort: 31426
