@@ -185,6 +185,7 @@ _______________________
 ![alt text](img/10.png)
 - Создал отдельный репозиторий 
 https://github.com/svpuzin/diplom_app
+https://svpuzin.gitlab.yandexcloud.net/s.v.puzin/diplom_app
 - подготовил и создал образ приложения
 ![alt text](img/11.png)
 - пушим все в ригистри
