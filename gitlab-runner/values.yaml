@@ -1,0 +1,50 @@
+---
+image:
+  registry: registry.gitlab.com
+  image: gitlab-org/gitlab-runner
+  tag: ubuntu
+podSecurityContext:
+  ## Note: values for the ubuntu image:
+  runAsUser: 999
+  fsGroup: 999
+hostAliases:
+  - ip: "158.160.218.177"
+    hostnames:
+    - "svpuzin.gitlab.yandexcloud.net"
+  - ip: "51.250.44.40"
+    hostnames:
+    - "cr.yandex"
+imagePullPolicy: IfNotPresent
+gitlabUrl: https://svpuzin.gitlab.yandexcloud.net/
+runnerRegistrationToken: "GR1348941nCJKm8QxrAN23LtWyK2H"
+terminationGracePeriodSeconds: 3600
+concurrent: 10
+checkInterval: 30
+poll_timeout: 360
+sessionServer:
+ enabled: false
+rbac:
+  create: true
+  clusterWideAccess: true
+  podSecurityPolicy:
+    enabled: false
+    resourceNames:
+      - gitlab-runner
+
+serviceAccount:
+  create: false
+  name: gitlab-deployer
+
+runners:
+  config: |
+    [[runners]]
+      pre_clone_script = 'echo "158.160.218.177 svpuzin.gitlab.yandexcloud.net" >> /etc/hosts && echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
+      [runners.kubernetes]
+        namespace = "default"
+        service_account = "gitlab-deployer"
+        image = "ubuntu:20.04"
+        privileged = true
+        dns_policy = "None"
+        [runners.kubernetes.dns_config]
+          nameservers = ["8.8.8.8", "8.8.4.4"]
+          options = [{name="ndots", value="1"}]
